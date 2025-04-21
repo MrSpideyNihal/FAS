@@ -15,6 +15,7 @@ class SimpleFacialAttendanceSystem:
         # Initialize OpenCV face detector
         self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
         
+        
         # Initialize face recognizer
         self.recognizer = cv2.face.LBPHFaceRecognizer_create()
         self.face_id_map = {}  # Maps IDs to names
@@ -101,7 +102,7 @@ class SimpleFacialAttendanceSystem:
         """Get the next available face ID."""
         if not self.face_id_map:
             return 1
-        return max(self.face_id_map.keys()) + 1
+        return max(self.face_id_map.keys()) 
     
     def _add_student_to_file(self, name, face_id):
         """Add a student to the students.csv file if not already present."""

@@ -15,8 +15,10 @@ class FacialAttendanceSystemUI:
         self.root.title("Facial Attendance System")
         self.root.geometry("1000x600")
         self.root.resizable(True, True)
-        
+        self.current_subject = ""
+        self.current_faculty = ""
         # Initialize backend system
+        #no argument passed
         self.system = SimpleFacialAttendanceSystem()
         
         # Variables
@@ -36,10 +38,13 @@ class FacialAttendanceSystemUI:
         # Left panel (camera view and controls)
         left_panel = ttk.Frame(main_frame)
         left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
+        left_panel.rowconfigure(0, weight=1)  # Camera view row expands
+        left_panel.rowconfigure(1, weight=0)  # Controls row remains fixed
+
         # Camera view frame
         self.camera_frame = ttk.LabelFrame(left_panel, text="Camera View", padding=10)
-        self.camera_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.camera_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        
         
         # Camera display
         self.camera_label = ttk.Label(self.camera_frame)
@@ -47,7 +52,7 @@ class FacialAttendanceSystemUI:
         
         # Camera controls frame
         camera_controls = ttk.Frame(left_panel, padding=10)
-        camera_controls.pack(fill=tk.X, padx=5, pady=5)
+        camera_controls.grid(row=1, column=0, sticky="ew", padx=5, pady=5)
         
         # Start/Stop Camera button
         self.camera_btn_text = tk.StringVar(value="Start Camera")
@@ -128,81 +133,217 @@ class FacialAttendanceSystemUI:
         self.users_listbox.config(yscrollcommand=scrollbar.set)
         scrollbar.config(command=self.users_listbox.yview)
         
+        # Buttons frame for user management
+        user_buttons_frame = ttk.Frame(users_frame)
+        user_buttons_frame.pack(fill=tk.X, pady=5)
+        
         # Refresh users button
-        refresh_btn = ttk.Button(users_frame, text="Refresh List", command=self.refresh_users_list)
-        refresh_btn.pack(fill=tk.X, pady=5)
+        refresh_btn = ttk.Button(user_buttons_frame, text="Refresh List", command=self.refresh_users_list)
+        refresh_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
+        
+        # Delete user button
+        delete_btn = ttk.Button(user_buttons_frame, text="Delete User", command=self.delete_registered_user)
+        delete_btn.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=2)
         
         # Initialize the list
         self.refresh_users_list()
-    
     def _setup_attendance_tab(self):
         """Setup the attendance tab"""
+        # Subject and faculty entry fields
+        subject_frame = ttk.Frame(self.attendance_tab)
+        subject_frame.pack(fill=tk.X, pady=5)
+
+        ttk.Label(subject_frame, text="Subject:").pack(side=tk.LEFT, padx=5)
+        self.subject_entry = ttk.Entry(subject_frame)
+        self.subject_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+
+        faculty_frame = ttk.Frame(self.attendance_tab)
+        faculty_frame.pack(fill=tk.X, pady=5)
+
+        ttk.Label(faculty_frame, text="Faculty:").pack(side=tk.LEFT, padx=5)
+        self.faculty_entry = ttk.Entry(faculty_frame)
+        self.faculty_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+
         # Start/Stop attendance button
         self.attendance_btn_text = tk.StringVar(value="Start Attendance")
         self.attendance_btn = ttk.Button(self.attendance_tab, textvariable=self.attendance_btn_text, 
                                         command=self.toggle_attendance)
         self.attendance_btn.pack(fill=tk.X, pady=10)
-        
+
         # Today's attendance frame
         attendance_frame = ttk.LabelFrame(self.attendance_tab, text="Today's Attendance", padding=10)
         attendance_frame.pack(fill=tk.BOTH, expand=True, pady=5)
-        
+
         # Create treeview for attendance
-        columns = ("name", "time_in", "time_out")
+        columns = ("name", "time_in", "time_out", "subject", "faculty")
         self.attendance_tree = ttk.Treeview(attendance_frame, columns=columns, show="headings")
-        
+
         # Define headings
         self.attendance_tree.heading("name", text="Name")
         self.attendance_tree.heading("time_in", text="Time In")
         self.attendance_tree.heading("time_out", text="Time Out")
-        
+        self.attendance_tree.heading("subject", text="Subject")
+        self.attendance_tree.heading("faculty", text="Faculty")
+
         # Set column widths
-        self.attendance_tree.column("name", width=150)
-        self.attendance_tree.column("time_in", width=100)
-        self.attendance_tree.column("time_out", width=100)
-        
+        self.attendance_tree.column("name", width=120)
+        self.attendance_tree.column("time_in", width=80)
+        self.attendance_tree.column("time_out", width=80)
+        self.attendance_tree.column("subject", width=120)
+        self.attendance_tree.column("faculty", width=120)
+
         # Add scrollbar
         tree_scroll = ttk.Scrollbar(attendance_frame, orient="vertical", command=self.attendance_tree.yview)
         self.attendance_tree.configure(yscrollcommand=tree_scroll.set)
-        
+
         # Pack everything
         tree_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         self.attendance_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
+
         # Refresh button
         refresh_btn = ttk.Button(self.attendance_tab, text="Refresh Attendance", 
                                command=self.refresh_attendance)
         refresh_btn.pack(fill=tk.X, pady=5)
-    
+    def export_report(self):
+        """Export attendance report to a CSV file"""
+        date = self.date_entry.get().strip()
+        subject = self.report_subject_entry.get().strip()
+        faculty = self.report_faculty_entry.get().strip()
+
+        date_str = date if date else "all_dates"
+        subject_str = f"_{subject}" if subject else ""
+        print(f"subject_str: {subject_str}")
+        faculty_str = f"_{faculty}" if faculty else ""
+
+        # Ask for output file
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+            initialfile=f"attendance_report_{date_str}{subject_str}{faculty_str}.csv"
+        )
+
+        if filename:
+            # Export the report
+            records = self.system.export_attendance_report(
+                filename, 
+                date if date else None,
+                subject if subject else None,
+                faculty if faculty else None
+            )
+
+            if records:
+                messagebox.showinfo("Success", f"Report exported to {filename}")
+                self.status_var.set(f"Report exported to {filename}")
+            else:
+                messagebox.showwarning("Warning", "No records found for export")
+    def view_report(self, all_dates=False):
+        """View attendance report for a specific date or all dates"""
+        # Clear current display
+        for item in self.report_tree.get_children():
+            self.report_tree.delete(item)
+
+        date = None if all_dates else self.date_entry.get().strip()
+        subject_filter = self.report_subject_entry.get().strip()
+        faculty_filter = self.report_faculty_entry.get().strip()
+
+        try:
+            # Read attendance data
+            attendance_records = []
+            with open(self.system.attendance_file, 'r', newline='') as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    # Apply filters
+                    matches_date = date is None or not date or row["date"] == date
+                    matches_subject = not subject_filter or row.get("subject", "") == subject_filter
+                    matches_faculty = not faculty_filter or row.get("faculty", "") == faculty_filter
+
+                    if matches_date and matches_subject and matches_faculty:
+                        # Calculate duration if both time_in and time_out exist
+                        duration = ""
+                        if row["time_in"] and row["time_out"]:
+                            try:
+                                time_in = datetime.strptime(row["time_in"], "%H:%M:%S")
+                                time_out = datetime.strptime(row["time_out"], "%H:%M:%S")
+                                duration = str(time_out - time_in)
+                            except:
+                                pass
+                            
+                        # Get subject and faculty (may be missing in old records)
+                        subject = row.get("subject", "")
+                        faculty = row.get("faculty", "")
+
+                        # Add to tree
+                        self.report_tree.insert("", tk.END, values=(
+                            row["id"], 
+                            row["student_name"], 
+                            row["date"], 
+                            row["time_in"], 
+                            row["time_out"], 
+                            duration,
+                            row["subject"],
+                            faculty
+                        ))
+
+            # Update status
+            filters = []
+            if date:
+                filters.append(f"date: {date}")
+            if subject_filter:
+                filters.append(f"subject: {subject_filter}")
+            if faculty_filter:
+                filters.append(f"faculty: {faculty_filter}")
+
+            if filters:
+                self.status_var.set(f"Showing attendance report for {', '.join(filters)}")
+            else:
+                self.status_var.set("Showing all attendance records")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not load attendance data: {e}")
     def _setup_reports_tab(self):
         """Setup the reports tab"""
         # Date selection
         date_frame = ttk.Frame(self.reports_tab)
         date_frame.pack(fill=tk.X, pady=5)
-        
+
         ttk.Label(date_frame, text="Date (YYYY-MM-DD):").pack(side=tk.LEFT, padx=5)
         self.date_entry = ttk.Entry(date_frame)
         self.date_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
         self.date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
-        
+
+        # Subject and Faculty filters
+        subject_frame = ttk.Frame(self.reports_tab)
+        subject_frame.pack(fill=tk.X, pady=5)
+
+        ttk.Label(subject_frame, text="Subject:").pack(side=tk.LEFT, padx=5)
+        self.report_subject_entry = ttk.Entry(subject_frame)
+        self.report_subject_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+
+        faculty_frame = ttk.Frame(self.reports_tab)
+        faculty_frame.pack(fill=tk.X, pady=5)
+
+        ttk.Label(faculty_frame, text="Faculty:").pack(side=tk.LEFT, padx=5)
+        self.report_faculty_entry = ttk.Entry(faculty_frame)
+        self.report_faculty_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+
         # View report button
         view_report_btn = ttk.Button(self.reports_tab, text="View Report", 
                                    command=self.view_report)
         view_report_btn.pack(fill=tk.X, pady=5)
-        
+
         # Export button
         export_btn = ttk.Button(self.reports_tab, text="Export Report", 
                               command=self.export_report)
         export_btn.pack(fill=tk.X, pady=5)
-        
+
         # Report results frame
         report_frame = ttk.LabelFrame(self.reports_tab, text="Report Results", padding=10)
         report_frame.pack(fill=tk.BOTH, expand=True, pady=5)
-        
+
         # Create treeview for report results
-        columns = ("id", "name", "date", "time_in", "time_out", "duration")
+        columns = ("id", "name", "date", "time_in", "time_out", "duration", "subject", "faculty")
         self.report_tree = ttk.Treeview(report_frame, columns=columns, show="headings")
-        
+
         # Define headings
         self.report_tree.heading("id", text="ID")
         self.report_tree.heading("name", text="Name")
@@ -210,28 +351,181 @@ class FacialAttendanceSystemUI:
         self.report_tree.heading("time_in", text="Time In")
         self.report_tree.heading("time_out", text="Time Out")
         self.report_tree.heading("duration", text="Duration")
-        
+        self.report_tree.heading("subject", text="Subject")
+        self.report_tree.heading("faculty", text="Faculty")
+
         # Set column widths
-        self.report_tree.column("id", width=50)
-        self.report_tree.column("name", width=150)
-        self.report_tree.column("date", width=100)
-        self.report_tree.column("time_in", width=80)
-        self.report_tree.column("time_out", width=80)
-        self.report_tree.column("duration", width=80)
-        
+        self.report_tree.column("id", width=40)
+        self.report_tree.column("name", width=120)
+        self.report_tree.column("date", width=80)
+        self.report_tree.column("time_in", width=70)
+        self.report_tree.column("time_out", width=70)
+        self.report_tree.column("duration", width=70)
+        self.report_tree.column("subject", width=100)
+        self.report_tree.column("faculty", width=100)
+
         # Add scrollbar
         report_scroll = ttk.Scrollbar(report_frame, orient="vertical", command=self.report_tree.yview)
         self.report_tree.configure(yscrollcommand=report_scroll.set)
-        
+
         # Pack everything
         report_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         self.report_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
+
         # View all button
         view_all_btn = ttk.Button(self.reports_tab, text="View All Records", 
                                 command=lambda: self.view_report(all_dates=True))
         view_all_btn.pack(fill=tk.X, pady=5)
-    
+    def _setup_data_storage(self):
+        """Set up the text file storage system for attendance records."""
+        # Create data directories if they don't exist
+        os.makedirs(self.data_dir, exist_ok=True)
+        os.makedirs(self.known_faces_dir, exist_ok=True)
+
+        # Create students CSV file if it doesn't exist
+        if not os.path.exists(self.students_file):
+            with open(self.students_file, 'w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(['id', 'name', 'registration_date'])
+
+        # Create attendance CSV file if it doesn't exist
+        if not os.path.exists(self.attendance_file):
+            with open(self.attendance_file, 'w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(['id', 'student_name', 'date', 'time_in', 'time_out', 'subject', 'faculty'])
+        else:
+            # Check if we need to update the file structure to include subject and faculty
+            with open(self.attendance_file, 'r', newline='') as file:
+                reader = csv.reader(file)
+                header = next(reader, None)
+                if header and 'subject' not in header and 'faculty' not in header:
+                    # Need to update the file structure
+                    records = [header] + list(reader)
+
+                    # Add new columns to header
+                    records[0].extend(['subject', 'faculty'])
+
+                    # Add empty values for existing records
+                    for i in range(1, len(records)):
+                        records[i].extend(['', ''])
+
+                    # Write back the updated file
+                    with open(self.attendance_file, 'w', newline='') as file:
+                        writer = csv.writer(file)
+                        writer.writerows(records)
+
+        # Load existing student data
+        self._load_students()
+    def start_attendance(self):
+        """Start attendance mode"""
+        if not self.system.loaded_recognizer:   
+            messagebox.showerror("Error", "No trained recognizer available. Please register faces first.")
+            return
+
+        # Check if subject and faculty are provided
+        subject = self.subject_entry.get().strip()
+        print("Subject 1st before strip :",subject)
+        faculty = self.faculty_entry.get().strip()
+
+        if not subject or not faculty:
+            messagebox.showerror("Error", "Please enter both subject and faculty name.")
+            return
+
+        # Store current subject and faculty
+        self.current_subject = subject
+        self.current_faculty = faculty
+
+        # Start camera if not running
+        if not self.is_camera_running:
+            self.start_camera()
+
+        # Set attendance mode
+        self.attendance_running = True
+        self.attendance_btn_text.set("Stop Attendance")
+
+        # For tracking who has been marked in this session
+        self.marked_this_session = set()
+
+        # Update status
+        self.status_var.set(f"Attendance mode active for {subject} by {faculty}. Recognizing faces...")
+
+        # Start attendance thread
+        self.attendance_thread = threading.Thread(target=self.attendance_loop)
+        self.attendance_thread.daemon = True
+        self.attendance_thread.start()
+        """Start attendance mode"""
+        if not self.system.loaded_recognizer:   
+            messagebox.showerror("Error", "No trained recognizer available. Please register faces first.")
+            return
+
+        # Check if subject and faculty are provided
+        subject = self.subject_entry.get().strip()
+        print("subject in entry ",subject)
+
+        faculty = self.faculty_entry.get().strip()
+
+        if not subject or not faculty:
+            messagebox.showerror("Error", "Please enter both subject and faculty name.")
+            return
+
+        # Store current subject and faculty
+        self.current_subject = subject
+        self.current_faculty = faculty
+
+        # Start camera if not running
+        if not self.is_camera_running:
+            self.start_camera()
+
+        # Set attendance mode
+        self.attendance_running = True
+        self.attendance_btn_text.set("Stop Attendance")
+
+        # For tracking who has been marked in this session
+        self.marked_this_session = set()
+
+        # Update status
+        self.status_var.set(f"Attendance mode active for {subject} by {faculty}. Recognizing faces...")
+
+        # Start attendance thread
+        self.attendance_thread = threading.Thread(target=self.attendance_loop)
+        self.attendance_thread.daemon = True
+        self.attendance_thread.start()
+        """Start attendance mode"""
+        if not self.system.loaded_recognizer:   
+            messagebox.showerror("Error", "No trained recognizer available. Please register faces first.")
+            return
+
+        # Check if subject and faculty are provided
+        subject = self.subject_entry.get().strip()
+        print("subject in entry ",subject)
+        faculty = self.faculty_entry.get().strip()
+
+        if not subject or not faculty:
+            messagebox.showerror("Error", "Please enter both subject and faculty name.")
+            return
+
+        # Store current subject and faculty
+        self.current_subject = subject
+        self.current_faculty = faculty
+
+        # Start camera if not running
+        if not self.is_camera_running:
+            self.start_camera()
+
+        # Set attendance mode
+        self.attendance_running = True
+        self.attendance_btn_text.set("Stop Attendance")
+
+        # For tracking who has been marked in this session
+        self.marked_this_session = set()
+
+        # Update status
+        self.status_var.set(f"Attendance mode active for {subject} by {faculty}. Recognizing faces...")
+
+        # Start attendance thread
+        self.attendance_thread = threading.Thread(target=self.attendance_loop)
+        self.attendance_thread.daemon = True
+        self.attendance_thread.start()
     def toggle_camera(self):
         """Toggle camera on/off"""
         if self.is_camera_running:
@@ -409,77 +703,200 @@ class FacialAttendanceSystemUI:
                 messagebox.showwarning("Warning", "No face detected. Please try again.")
             else:
                 messagebox.showwarning("Warning", "Multiple faces detected. Please ensure only one face is in the frame.")
-    
+    def delete_registered_user(self):
+        """Delete a registered user"""
+        # Get the selected user from the listbox
+        selection = self.users_listbox.curselection()
+        if not selection:
+            messagebox.showerror("Error", "Please select a user to delete")
+            return
+
+        # Get the selected user information
+        user_info = self.users_listbox.get(selection[0])
+
+        # Extract the name from the user info (format: "id: name (registration_date)")
+        # Parse "1: John Doe (2023-04-01)" to get "John Doe"
+        try:
+            user_id = int(user_info.split(":")[0].strip())
+            user_name = user_info.split(":")[1].split("(")[0].strip()
+        except:
+            messagebox.showerror("Error", "Could not parse user information")
+            return
+
+        # Confirm deletion
+        confirm = messagebox.askyesno("Confirm Deletion", 
+                                     f"Are you sure you want to delete user {user_name}?\n"
+                                     "This will remove all face data and cannot be undone.")
+        if not confirm:
+            return
+
+        # Delete the user from students file
+        self.delete_user_from_file(user_id)
+
+        # Delete the user's face directory
+        user_dir = os.path.join(self.system.known_faces_dir, user_name)
+        if os.path.exists(user_dir) and os.path.isdir(user_dir):
+            try:
+                for filename in os.listdir(user_dir):
+                    file_path = os.path.join(user_dir, filename)
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                os.rmdir(user_dir)
+            except Exception as e:
+                messagebox.showerror("Error", f"Could not delete user directory: {e}")
+                return
+
+        # Remove from face_id_map
+        if user_id in self.system.face_id_map:
+            del self.system.face_id_map[user_id]
+
+        # Retrain recognizer with remaining users
+        self.retrain_recognizer()
+
+        # Refresh the user list
+        self.refresh_users_list()
+
+        # Update status
+        self.status_var.set(f"User {user_name} deleted successfully")
+        messagebox.showinfo("Success", f"User {user_name} deleted successfully")
+
+    def delete_user_from_file(self, user_id):
+        """Delete a user from the students CSV file"""
+        try:
+            # Read all records
+            records = []
+            with open(self.system.students_file, 'r', newline='') as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    # Skip the user to delete
+                    if int(row['id']) != user_id:
+                        records.append(row)
+
+            # Write back all records
+            with open(self.system.students_file, 'w', newline='') as file:
+                writer = csv.DictWriter(file, fieldnames=['id', 'name', 'registration_date'])
+                writer.writeheader()
+                writer.writerows(records)
+
+            return True
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not delete user from file: {e}")
+            return False
+
+    def retrain_recognizer(self):
+        """Retrain the face recognizer with all remaining registered users"""
+        # Train the recognizer with ALL remaining data
+        all_faces = []
+        all_labels = []
+
+        # Load all registered faces
+        for person_name in os.listdir(self.system.known_faces_dir):
+            person_dir = os.path.join(self.system.known_faces_dir, person_name)
+            if os.path.isdir(person_dir):
+                # Get face ID for this person
+                person_id = None
+                for face_id, name in self.system.face_id_map.items():
+                    if name == person_name:
+                        person_id = face_id
+                        break
+                    
+                if person_id is not None:
+                    for img_name in os.listdir(person_dir):
+                        if img_name.endswith(('.jpg', '.jpeg', '.png')):
+                            img_path = os.path.join(person_dir, img_name)
+                            face_img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+                            if face_img is not None:
+                                all_faces.append(face_img)
+                                all_labels.append(person_id)
+
+        if all_faces and all_labels:
+            # Train the recognizer
+            self.system.recognizer = cv2.face.LBPHFaceRecognizer_create()  # Create a fresh recognizer
+            self.system.recognizer.train(all_faces, np.array(all_labels))
+            self.system._save_recognizer()
+            self.system.loaded_recognizer = True
+
+            # Update status
+            self.status_var.set("Face recognizer retrained successfully")
+        else:
+            # No faces left, just reset the recognizer
+            self.system.recognizer = cv2.face.LBPHFaceRecognizer_create()
+            self.system.loaded_recognizer = False
+
+            # Delete the recognizer file if it exists
+            model_path = os.path.join(self.system.data_dir, "recognizer.yml")
+            if os.path.exists(model_path):
+                os.remove(model_path)
+
+            # Update status
+            self.status_var.set("All users deleted, face recognizer reset") 
     def finish_registration(self):
         """Finish the registration process and train the recognizer"""
         if not hasattr(self, 'register_name') or not self.register_name:
             return
-        
+
         # Disable capture button
         self.capture_btn.config(state=tk.DISABLED)
-        
+
         # Update status
         self.status_var.set(f"Training recognizer with {self.captured_count} images...")
-        
+
         # Add to face ID map
         self.system.face_id_map[self.register_face_id] = self.register_name
-        
+
         # Add to students file
         self.system._add_student_to_file(self.register_name, self.register_face_id)
-        
-        # Train the recognizer
+
+        # Train the recognizer with ALL data
         all_faces = []
         all_labels = []
-        
-        if self.system.loaded_recognizer:
-            # If we're updating an existing model, we need to retrain from scratch
-            # Load all previously registered faces
-            for person_name in os.listdir(self.system.known_faces_dir):
-                person_dir = os.path.join(self.system.known_faces_dir, person_name)
-                if os.path.isdir(person_dir) and person_name != self.register_name:
-                    # Get face ID for this person
-                    person_id = None
-                    for face_id, name in self.system.face_id_map.items():
-                        if name == person_name:
-                            person_id = face_id
-                            break
+
+        # ALWAYS load ALL previously registered faces, not just when updating existing model
+        # Load all registered faces including the new one
+        for person_name in os.listdir(self.system.known_faces_dir):
+            person_dir = os.path.join(self.system.known_faces_dir, person_name)
+            if os.path.isdir(person_dir):
+                # Get face ID for this person
+                person_id = None
+                for face_id, name in self.system.face_id_map.items():
+                    if name == person_name:
+                        person_id = face_id
+                        break
                     
-                    if person_id is not None:
-                        for img_name in os.listdir(person_dir):
-                            if img_name.endswith(('.jpg', '.jpeg', '.png')):
-                                img_path = os.path.join(person_dir, img_name)
-                                face_img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-                                if face_img is not None:
-                                    all_faces.append(face_img)
-                                    all_labels.append(person_id)
-        
-        # Add the newly captured faces
-        all_faces.extend(self.training_data)
-        all_labels.extend(self.training_labels)
-        
+                if person_id is not None:
+                    for img_name in os.listdir(person_dir):
+                        if img_name.endswith(('.jpg', '.jpeg', '.png')):
+                            img_path = os.path.join(person_dir, img_name)
+                            face_img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+                            if face_img is not None:
+                                all_faces.append(face_img)
+                                all_labels.append(person_id)
+
+        # No need to add the newly captured faces separately since we're loading ALL faces
+        # from directories including the newly registered ones
+
         if all_faces and all_labels:
             # Train the recognizer
             self.system.recognizer.train(all_faces, np.array(all_labels))
             self.system._save_recognizer()
             self.system.loaded_recognizer = True
-            
+
             # Update status
             self.status_var.set(f"Successfully registered {self.register_name}")
             messagebox.showinfo("Success", f"Successfully registered {self.register_name} with {self.captured_count} images")
-            
+
             # Reset progress
             self.progress_var.set(0)
             self.progress_label.config(text="0/30 images captured")
-            
+
             # Clear name entry
             self.name_entry.delete(0, tk.END)
-            
+
             # Refresh user list
             self.refresh_users_list()
         else:
             self.status_var.set("No training data available")
             messagebox.showerror("Error", "No training data available")
-    
     def refresh_users_list(self):
         """Refresh the list of registered users"""
         self.users_listbox.delete(0, tk.END)
@@ -498,31 +915,6 @@ class FacialAttendanceSystemUI:
             self.stop_attendance()
         else:
             self.start_attendance()
-    
-    def start_attendance(self):
-        """Start attendance mode"""
-        if not self.system.loaded_recognizer:
-            messagebox.showerror("Error", "No trained recognizer available. Please register faces first.")
-            return
-        
-        # Start camera if not running
-        if not self.is_camera_running:
-            self.start_camera()
-        
-        # Set attendance mode
-        self.attendance_running = True
-        self.attendance_btn_text.set("Stop Attendance")
-        
-        # For tracking who has been marked in this session
-        self.marked_this_session = set()
-        
-        # Update status
-        self.status_var.set("Attendance mode active. Recognizing faces...")
-        
-        # Start attendance thread
-        self.attendance_thread = threading.Thread(target=self.attendance_loop)
-        self.attendance_thread.daemon = True
-        self.attendance_thread.start()
     
     def stop_attendance(self):
         """Stop attendance mode"""
@@ -546,7 +938,7 @@ class FacialAttendanceSystemUI:
             if self.current_frame is not None:
                 frame = self.current_frame.copy()
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                
+
                 # Detect faces
                 faces = self.system.face_cascade.detectMultiScale(
                     gray, 
@@ -554,15 +946,15 @@ class FacialAttendanceSystemUI:
                     minNeighbors=5,
                     minSize=(30, 30)
                 )
-                
+
                 # Process each detected face
                 for (x, y, w, h) in faces:
                     face_img = gray[y:y+h, x:x+w]
-                    
+
                     try:
                         # Use the recognizer to predict who this is
                         face_id, confidence = self.system.recognizer.predict(face_img)
-                        
+
                         # Lower confidence value means better match in LBPH
                         if confidence < 100:
                             name = self.system.face_id_map.get(face_id, "Unknown")
@@ -570,123 +962,91 @@ class FacialAttendanceSystemUI:
                         else:
                             name = "Unknown"
                             confidence_text = ""
-                        
+
                         # Mark attendance if recognized with good confidence
-                        if name != "Unknown" and confidence < 70 and name not in self.marked_this_session:
-                            self.system.mark_attendance(name)
+                        if name != "Unknown" and confidence < 50 and name not in self.marked_this_session:
+                            print("Subject:",self.current_subject)
+                            self.system.mark_attendance(name, subject=self.current_subject, faculty=self.current_faculty)
                             self.marked_this_session.add(name)
-                            
+
                             # Update status
                             self.status_var.set(f"Marked attendance for {name}")
-                            
+
                             # Refresh attendance display
                             self.refresh_attendance()
-                        
+
                         # Draw rectangle and name on the frame
                         color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
                         cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
-                        
+
                         # Put text below the face
                         text = f"{name} {confidence_text}"
                         cv2.putText(frame, text, (x, y+h+25), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
-                    
+
                     except Exception as e:
                         print(f"Error during recognition: {e}")
                         # Draw red rectangle for error
                         cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 0, 255), 2)
-                
+
                 # Update display with the processed frame
                 self.update_camera_display(frame)
-            
+
             # Small delay to reduce CPU usage
             time.sleep(0.1)
-    
     def refresh_attendance(self):
         """Refresh the attendance display for today"""
         # Clear current display
         for item in self.attendance_tree.get_children():
             self.attendance_tree.delete(item)
-        
+
         # Get today's date
         current_date = datetime.now().strftime("%Y-%m-%d")
-        
+
         try:
             # Read attendance data
             with open(self.system.attendance_file, 'r', newline='') as file:
                 reader = csv.DictReader(file)
                 for row in reader:
                     if row["date"] == current_date:
-                        self.attendance_tree.insert("", tk.END, values=(row["student_name"], row["time_in"], row["time_out"]))
+                        # Get subject and faculty from the row
+                        subject = row.get("subject", "")
+                        faculty = row.get("faculty", "")
+
+                        self.attendance_tree.insert("", tk.END, 
+                                                 values=(row["student_name"], 
+                                                        row["time_in"], 
+                                                        row["time_out"],
+                                                        subject,  # Add subject
+                                                        faculty)) # Add faculty
+
         except Exception as e:
             messagebox.showerror("Error", f"Could not load attendance data: {e}")
-    
-    def view_report(self, all_dates=False):
-        """View attendance report for a specific date or all dates"""
+        """Refresh the attendance display for today"""
         # Clear current display
-        for item in self.report_tree.get_children():
-            self.report_tree.delete(item)
-        
-        date = None if all_dates else self.date_entry.get().strip()
-        
+        for item in self.attendance_tree.get_children():
+            self.attendance_tree.delete(item)
+
+        # Get today's date
+        current_date = datetime.now().strftime("%Y-%m-%d")
+
         try:
             # Read attendance data
-            attendance_records = []
             with open(self.system.attendance_file, 'r', newline='') as file:
                 reader = csv.DictReader(file)
                 for row in reader:
-                    # Filter by date if specified
-                    if date is None or not date or row["date"] == date:
-                        # Calculate duration if both time_in and time_out exist
-                        duration = ""
-                        if row["time_in"] and row["time_out"]:
-                            try:
-                                time_in = datetime.strptime(row["time_in"], "%H:%M:%S")
-                                time_out = datetime.strptime(row["time_out"], "%H:%M:%S")
-                                duration = str(time_out - time_in)
-                            except:
-                                pass
-                        
-                        # Add to tree
-                        self.report_tree.insert("", tk.END, values=(
-                            row["id"], 
-                            row["student_name"], 
-                            row["date"], 
-                            row["time_in"], 
-                            row["time_out"], 
-                            duration
-                        ))
-            
-            # Update status
-            if date:
-                self.status_var.set(f"Showing attendance report for {date}")
-            else:
-                self.status_var.set("Showing all attendance records")
-        
+                    if row["date"] == current_date:
+                        # Get subject and faculty (may be missing in old records)
+                        subject = row.get("subject", "")
+                        faculty = row.get("faculty", "")
+
+                        self.attendance_tree.insert("", tk.END, 
+                                                 values=(row["student_name"], 
+                                                        row["time_in"], 
+                                                        row["time_out"],
+                                                        subject,
+                                                        faculty))
         except Exception as e:
             messagebox.showerror("Error", f"Could not load attendance data: {e}")
-    
-    def export_report(self):
-        """Export attendance report to a CSV file"""
-        date = self.date_entry.get().strip()
-        date_str = date if date else "all_dates"
-        
-        # Ask for output file
-        filename = filedialog.asksaveasfilename(
-            defaultextension=".csv",
-            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
-            initialfile=f"attendance_report_{date_str}.csv"
-        )
-        
-        if filename:
-            # Export the report
-            records = self.system.export_attendance_report(filename, date if date else None)
-            
-            if records:
-                messagebox.showinfo("Success", f"Report exported to {filename}")
-                self.status_var.set(f"Report exported to {filename}")
-            else:
-                messagebox.showwarning("Warning", "No records found for export")
-
 
 # Keep the original backend class unchanged
 class SimpleFacialAttendanceSystem:
@@ -695,6 +1055,7 @@ class SimpleFacialAttendanceSystem:
         self.known_faces_dir = known_faces_dir
         self.data_dir = data_dir
         self.students_file = os.path.join(data_dir, "students.csv")
+        print
         self.attendance_file = os.path.join(data_dir, "attendance.csv")
         
         # Initialize OpenCV face detector
@@ -779,32 +1140,55 @@ class SimpleFacialAttendanceSystem:
         model_path = os.path.join(self.data_dir, "recognizer.yml")
         self.recognizer.write(model_path)
         print("Saved face recognizer model")
-    
-    def mark_attendance(self, name):
+    def mark_attendance(self, name, subject=None, faculty=None):
         """Mark attendance for a recognized student."""
         # Get current date and time
         current_date = datetime.now().strftime("%Y-%m-%d")
         current_time = datetime.now().strftime("%H:%M:%S")
-        
+
         # Check if student already has an entry for today
         student_found = False
         records = []
-        
+
         try:
             # Read existing records
             with open(self.attendance_file, 'r', newline='') as file:
                 reader = csv.DictReader(file)
+                header = reader.fieldnames
+
+                # Check if header includes subject and faculty
+                if 'subject' not in header:
+                    header.append('subject')
+                if 'faculty' not in header:
+                    header.append('faculty')
+
                 for row in reader:
-                    if row['student_name'] == name and row['date'] == current_date:
+                    # Make sure row has subject and faculty keys
+                    if 'subject' not in row:
+                        row['subject'] = ''
+                    if 'faculty' not in row:
+                        row['faculty'] = ''
+
+                    # Match by name, date, AND subject (if provided)
+                    if (row['student_name'] == name and 
+                        row['date'] == current_date and 
+                        (subject is None or row['subject'] == subject)):
+
                         # Student already has an entry for today
                         student_found = True
-                        
+
                         # If time_out is empty, update it
                         if not row['time_out']:
                             row['time_out'] = current_time
-                    
+
+                        # Update subject and faculty if they were empty
+                        if subject and not row['subject']:
+                            row['subject'] = subject
+                        if faculty and not row['faculty']:
+                            row['faculty'] = faculty
+
                     records.append(row)
-            
+
             # If student not found, add a new entry
             if not student_found:
                 # Find the student ID
@@ -813,40 +1197,105 @@ class SimpleFacialAttendanceSystem:
                     if student_name == name:
                         student_id = face_id
                         break
-                
+                    
                 if student_id is not None:
                     records.append({
                         'id': student_id,
                         'student_name': name,
                         'date': current_date,
                         'time_in': current_time,
-                        'time_out': ''
+                        'time_out': '',
+                        'subject': subject or '',
+                        'faculty': faculty or ''
                     })
-            
+
             # Write back all records
             with open(self.attendance_file, 'w', newline='') as file:
-                writer = csv.DictWriter(file, fieldnames=['id', 'student_name', 'date', 'time_in', 'time_out'])
+                writer = csv.DictWriter(file, fieldnames=['id', 'student_name', 'date', 'time_in', 'time_out', 'subject', 'faculty'])
                 writer.writeheader()
                 writer.writerows(records)
-            
+
             print(f"Marked attendance for {name} on {current_date} at {current_time}")
             return True
-        
+
         except Exception as e:
             print(f"Error marking attendance: {e}")
-            return False
-    
-    def export_attendance_report(self, output_file, date=None):
+            return False    
+            """Mark attendance for a recognized student."""
+            # Get current date and time
+            current_date = datetime.now().strftime("%Y-%m-%d")
+            current_time = datetime.now().strftime("%H:%M:%S")
+
+            # Check if student already has an entry for today
+            student_found = False
+            records = []
+
+            try:
+                # Read existing records
+                with open(self.attendance_file, 'r', newline='') as file:
+                    reader = csv.DictReader(file)
+                    for row in reader:
+                        # Match by name, date, AND subject
+                            if (row['student_name'] == name and 
+                                row['date'] == current_date and 
+                                row.get('subject', '') == (subject or '')):
+
+                                # Student already has an entry for today
+                                student_found = True
+
+                                # If time_out is empty, update it
+                                if not row['time_out']:
+                                    row['time_out'] = current_time
+
+                            records.append(row)
+
+                    # If student not found, add a new entry
+                    if not student_found:
+                        # Find the student ID
+                        student_id = None
+                        for face_id, student_name in self.face_id_map.items():
+                            if student_name == name:
+                                student_id = face_id
+                                break
+                            
+                        if student_id is not None:
+                            records.append({
+                                'id': student_id,
+                                'student_name': name,
+                                'date': current_date,
+                                'time_in': current_time,
+                                'time_out': '',
+                                'subject': subject or '',
+                                'faculty': faculty or ''
+                            })
+
+                    # Write back all records
+                    with open(self.attendance_file, 'w', newline='') as file:
+                        writer = csv.DictWriter(file, fieldnames=['id', 'student_name', 'date', 'time_in', 'time_out', 'subject', 'faculty'])
+                        writer.writeheader()
+                        writer.writerows(records)
+
+                    print(f"Marked attendance for {name} on {current_date} at {current_time}")
+                    return True
+
+            except Exception as e:
+                    print(f"Error marking attendance: {e}")
+                    return False
+    def export_attendance_report(self, output_file, date=None, subject=None, faculty=None):
         """Export attendance report to a CSV file."""
         try:
             # Read all records
             with open(self.attendance_file, 'r', newline='') as file:
                 reader = csv.DictReader(file)
                 records = []
-                
+
                 for row in reader:
-                    # Filter by date if specified
-                    if date is None or row['date'] == date:
+                    # Filter by date and other criteria if specified
+                    match_date = date is None or row['date'] == date
+                    match_subject = subject is None or row.get('subject', '') == subject
+                    match_faculty = faculty is None or row.get('faculty', '') == faculty
+
+                    if match_date and match_subject and match_faculty:
                         # Calculate duration if both time_in and time_out exist
                         duration = ""
                         if row['time_in'] and row['time_out']:
@@ -856,25 +1305,25 @@ class SimpleFacialAttendanceSystem:
                                 duration = str(time_out - time_in)
                             except Exception as e:
                                 print(f"Error calculating duration: {e}")
-                        
+
                         # Add duration to the record
                         row_with_duration = row.copy()
                         row_with_duration['duration'] = duration
                         records.append(row_with_duration)
-            
+
             # If no records found, return empty
             if not records:
                 return []
-            
+
             # Write to output file
             with open(output_file, 'w', newline='') as file:
-                fieldnames = ['id', 'student_name', 'date', 'time_in', 'time_out', 'duration']
+                fieldnames = ['id', 'student_name', 'date', 'time_in', 'time_out', 'duration', 'subject', 'faculty']
                 writer = csv.DictWriter(file, fieldnames=fieldnames)
                 writer.writeheader()
                 writer.writerows(records)
-            
+
             return records
-        
+
         except Exception as e:
             print(f"Error exporting attendance report: {e}")
             return []
